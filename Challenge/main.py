@@ -1,25 +1,19 @@
 import pandas as pd
+import numpy as np
 
 # This is a sample Python script.
 
-users = pd.read_csv("data/users.csv")
-movies = pd.read_csv("data/movies.csv")
-ratings = pd.read_csv("data/ratings.csv")
+users = pd.read_csv("data/users.csv", delimiter=';', dtype={'userID':'int', 'gender':'str', 'age':'int', 'profession':'int'}, names=['userID', 'gender', 'age', 'profession'])
+movies = np.array(pd.read_csv("data/movies.csv", delimiter=';', dtype={'movieID':'int', 'year':'int', 'movie':'str'}, names=['movieID', 'year', 'movie']))
+ratings = np.array(pd.read_csv("data/ratings.csv", delimiter=';', dtype={'userID':'int', 'movieID':'int', 'rating':'int'}, names=['userID', 'movieID', 'rating']))
 predictions = pd.read_csv("data/predictions.csv")
 submission = pd.read_csv("data/submission.csv")
 
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    #TO DO - create a collaborative filtering function like in example
+    utility_matrix = np.zeros((len(users), len(movies)))
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    for i in ratings:
+        utility_matrix[i[0]-1, i[1]-1] = i[2]
+
