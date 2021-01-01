@@ -1,22 +1,119 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+from random import randint
 
-# process csv files as arrays
-users = np.array(pd.read_csv("data/users.csv", delimiter=';', dtype={'userID':'int', 'gender':'str', 'age':'int', 'profession':'int'}, names=['userID', 'gender', 'age', 'profession']))
-movies = np.array(pd.read_csv("data/movies.csv", delimiter=';', dtype={'movieID':'int', 'year':'int', 'movie':'str'}, names=['movieID', 'year', 'movie']))
-ratings = np.array(pd.read_csv("data/ratings.csv", delimiter=';', dtype={'userID':'int', 'movieID':'int', 'rating':'int'}, names=['userID', 'movieID', 'rating']))
-predictions = pd.read_csv("data/predictions.csv")
-submission = pd.read_csv("data/submission.csv")
+#####
+##
+## DATA IMPORT
+##
+#####
+
+# Where data is located
+movies_file = './data/movies.csv'
+users_file = './data/users.csv'
+ratings_file = './data/ratings.csv'
+predictions_file = './data/predictions.csv'
+submission_file = './data/submission.csv'
+
+# Read the data using pandas
+movies_description = pd.read_csv(movies_file, delimiter=';', dtype={'movieID': 'int', 'year': 'int', 'movie': 'str'},
+                                 names=['movieID', 'year', 'movie'])
+users_description = pd.read_csv(users_file, delimiter=';',
+                                dtype={'userID': 'int', 'gender': 'str', 'age': 'int', 'profession': 'int'},
+                                names=['userID', 'gender', 'age', 'profession'])
+ratings_description = pd.read_csv(ratings_file, delimiter=';',
+                                  dtype={'userID': 'int', 'movieID': 'int', 'rating': 'int'},
+                                  names=['userID', 'movieID', 'rating'])
+predictions_description = pd.read_csv(predictions_file, delimiter=';', names=['userID', 'movieID'])
 
 
-if __name__ == '__main__':
-    #TO DO - create a collaborative filtering function
+#####
+##
+## COLLABORATIVE FILTERING
+##
+#####
 
-    #entries [0, :] and [:, 0] are empty to process data easier
-    #users x movies matrix
-    utility_matrix = np.zeros((len(users)+1, len(movies)+1))
+def predict_collaborative_filtering(movies, users, ratings, predictions):
+    # transform csv files to arrays
+    movies = np.array(movies)
+    users = np.array(users)
+    ratings = np.array(ratings)
 
-    #populate matrix with ratings
+    # entries [0, :] and [:, 0] are empty to process data easier
+    # users x movies matrix
+    utility_matrix = np.zeros((len(users) + 1, len(movies) + 1))
+
+    # populate matrix with ratings
     for i in ratings:
         utility_matrix[i[0], i[1]] = i[2]
+
+
+    pass
+
+
+#####
+##
+## LATENT FACTORS
+##
+#####
+
+def predict_latent_factors(movies, users, ratings, predictions):
+    ## TO COMPLETE
+
+    pass
+
+
+#####
+##
+## FINAL PREDICTORS
+##
+#####
+
+def predict_final(movies, users, ratings, predictions):
+    ## TO COMPLETE
+
+    pass
+
+
+def predict_randoms(movies, users, ratings, predictions):
+    number_predictions = len(predictions)
+
+    return [[idx, randint(1, 5)] for idx in range(1, number_predictions + 1)]
+
+
+##########################################
+# MAIN FUNCTION
+
+
+### TESTING
+
+predict_collaborative_filtering(movies_description, users_description, ratings_description, predictions_description)
+
+
+
+#####
+##
+## SAVE RESULTS
+##
+#####
+
+
+###################################
+## commented out for later
+
+
+# ## //!!\\ TO CHANGE by your prediction function
+# predictions = predict_randoms(movies_description, users_description, ratings_description, predictions_description)
+#
+# # Save predictions, should be in the form 'list of tuples' or 'list of lists'
+# with open(submission_file, 'w') as submission_writer:
+#     # Formates data
+#     predictions = [map(str, row) for row in predictions]
+#     predictions = [','.join(row) for row in predictions]
+#     predictions = 'Id,Rating\n' + '\n'.join(predictions)
+#
+#     # Writes it dowmn
+#     submission_writer.write(predictions)
+
+
 
