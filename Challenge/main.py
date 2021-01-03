@@ -47,7 +47,14 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     for i in ratings:
         utility_matrix[i[0], i[1]] = i[2]
 
+    # calculate similarity matrix using pearson correlation coefficient
 
+    # we first calculate the average movie rating per user
+    averages = np.mean(utility_matrix, axis=1, keepdims=True)
+
+    # we normalize the ratings by subtracting the average
+    normalized_matrix = utility_matrix.copy()
+    normalized_matrix = normalized_matrix - averages
     pass
 
 
@@ -89,8 +96,6 @@ def predict_randoms(movies, users, ratings, predictions):
 
 predict_collaborative_filtering(movies_description, users_description, ratings_description, predictions_description)
 
-
-
 #####
 ##
 ## SAVE RESULTS
@@ -114,6 +119,3 @@ predict_collaborative_filtering(movies_description, users_description, ratings_d
 #
 #     # Writes it dowmn
 #     submission_writer.write(predictions)
-
-
-
