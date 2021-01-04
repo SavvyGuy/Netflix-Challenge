@@ -41,20 +41,37 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 
     # entries [0, :] and [:, 0] are empty to process data easier
     # users x movies matrix
-    utility_matrix = np.zeros((len(users) + 1, len(movies) + 1))
+    utility_matrix = np.zeros((len(users), len(movies)))
 
     # populate matrix with ratings
     for i in ratings:
-        utility_matrix[i[0], i[1]] = i[2]
+        utility_matrix[i[0]-1, i[1]-1] = i[2]
+
 
     # calculate similarity matrix using pearson correlation coefficient
 
     # we first calculate the average movie rating per user
-    averages = np.mean(utility_matrix, axis=1, keepdims=True)
+    averages = np.average(utility_matrix, axis=1, weights=(utility_matrix > 0))
+    averages = averages[:, np.newaxis]
 
-    # we normalize the ratings by subtracting the average
-    normalized_matrix = utility_matrix.copy()
-    normalized_matrix = normalized_matrix - averages
+
+    #we normalize the ratings by subtracting the average if rating > 0
+    normalized_matrix = np.where(np.array(utility_matrix > 0),  utility_matrix - averages, 0)
+
+    print(utility_matrix[6038])
+    print(averages[6038])
+    print(normalized_matrix[6038])
+
+    sim_matrix = np.zeros((len(normalized_matrix), len(normalized_matrix)))
+
+    for i in range (0, len(normalized_matrix)):
+        for m in range (i+1, len(normalized_matrix)):
+            sim_matrix[i,m] = np.dot(normalized_matrix[i],normalized_matrix[m]) / (np.linalg.norm(normalized_matrix[i])
+                                                                                   * np.linalg.norm(normalized_matrix[m]))
+
+    print(sim_matrix)
+
+
     pass
 
 
