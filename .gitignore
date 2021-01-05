@@ -1,4 +1,2 @@
 Challenge/.idea/*
-Challenge/venv/*
-
-
+/Challenge/venv/
