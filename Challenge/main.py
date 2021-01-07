@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 from random import randint
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import pairwise_distances
+from scipy import sparse
+from sklearn.metrics.pairwise import linear_kernel
 
 #####
 ##
@@ -34,53 +38,57 @@ predictions_description = pd.read_csv(predictions_file, delimiter=';', names=['u
 #####
 
 def predict_collaborative_filtering(movies, users, ratings, predictions):
-    # transform csv files to arrays
-    movies = np.array(movies)
-    users = np.array(users)
-    ratings = np.array(ratings)
-
-    # entries [0, :] and [:, 0] are empty to process data easier
     # users x movies matrix
     utility_matrix = np.zeros((len(users), len(movies)))
 
-    # populate matrix with ratings
-    for i in ratings:
-        utility_matrix[i[0] - 1, i[1] - 1] = i[2]
-
-    # sparsity = float(len(utility_matrix.nonzero()[0]))
-    # sparsity /= (utility_matrix.shape[0] * utility_matrix.shape[1])
-    # sparsity = 100 - sparsity * 100
-    # print('Sparsity: {:4.2f}%'.format(sparsity))
+    # populate utility matrix with ratins
+    for i in ratings.itertuples():
+        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
     # calculate similarity matrix using pearson correlation coefficient
 
-    # # we first calculate the average movie rating per user
-    # averages = np.average(utility_matrix, axis=1, weights=(utility_matrix > 0))
-    # averages = averages[:, np.newaxis]
-    #
-    #
-    # #we normalize the ratings by subtracting the average if rating > 0
-    # normalized_matrix = np.where(np.array(utility_matrix > 0),  utility_matrix - averages, 0)
-    #
+    # we first calculate the average movie rating per user
+    mean_user_ratings = np.average(utility_matrix, axis=1, weights=(utility_matrix > 0))[:, np.newaxis]
 
-    # similarity matrix for users
-    sim_matrix = np.zeros((len(users), len(users)))
+    # we normalize the ratings by subtracting the average if rating > 0
+    ratings_diff = np.where(np.array(utility_matrix > 0), utility_matrix - mean_user_ratings, 0)
+
+    # similarity matrix for users using cosine similarity
+    user_similarity = pairwise_distances(ratings_diff, metric='cosine')
+
+    # prediction_matrix
+    pred = np.zeros((len(users), len(movies)))
+
+    # collaborative filtering using knn algorithm
+
+    # total = ratings_diff.shape[0] * ratings_diff.shape[1]
+    # p = 0
+    #
+    # for i in range(ratings_diff.shape[0]):
+    #     top_k_users = [np.argsort(user_similarity[:, i])[:-20 - 1:-1]]
+    #     for j in range(ratings_diff.shape[1]):
+    #         pred[i, j] = user_similarity[i, :][top_k_users].dot(ratings_diff[:, j][top_k_users])
+    #         pred[i, j] /= np.sum(np.abs(user_similarity[i, :][top_k_users]))
+    #         p += 1
+    #     print('Progress: {:4.2f}%'.format(p / total * 100))
+    # pred = mean_user_ratings + pred
+
+    # collaborative filtering without knn algorithm
+    pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
+                                                                   np.newaxis]
+
+    # result matrix for submission
+    result = np.zeros((len(predictions), 2), dtype=int)
 
     count = 0
 
-    total = (len(users) * len(users) - len(users)) / 2
+    # populate result matrix with rounded predictions
+    for row in predictions.itertuples():
+        result[count, 0] = count + 1
+        result[count, 1] = int(round(pred[row[1] - 1, row[2] - 1], 0))
+        count += 1
 
-
-    # populate matrix with cosine similarity between users
-    for i in range(0, len(utility_matrix)):
-        for m in range(i + 1, len(utility_matrix)):
-
-            sim_matrix[i, m] = np.dot(utility_matrix[i], utility_matrix[m]) / (np.linalg.norm(utility_matrix[i])
-                                                                               * np.linalg.norm(utility_matrix[m]))
-            count+=1
-        print('Process: {:4.2f}%'.format(count/total*100))
-
-    pass
+    return result
 
 
 #####
@@ -119,7 +127,6 @@ def predict_randoms(movies, users, ratings, predictions):
 
 ### TESTING
 
-predict_collaborative_filtering(movies_description, users_description, ratings_description, predictions_description)
 
 #####
 ##
@@ -132,15 +139,20 @@ predict_collaborative_filtering(movies_description, users_description, ratings_d
 ## commented out for later
 
 
-# ## //!!\\ TO CHANGE by your prediction function
-# predictions = predict_randoms(movies_description, users_description, ratings_description, predictions_description)
-#
-# # Save predictions, should be in the form 'list of tuples' or 'list of lists'
-# with open(submission_file, 'w') as submission_writer:
-#     # Formates data
-#     predictions = [map(str, row) for row in predictions]
-#     predictions = [','.join(row) for row in predictions]
-#     predictions = 'Id,Rating\n' + '\n'.join(predictions)
-#
-#     # Writes it dowmn
-#     submission_writer.write(predictions)
+## //!!\\ TO CHANGE by your prediction function
+
+# predict collaborative filtering
+predictions = predict_collaborative_filtering(movies_description, users_description, ratings_description,
+                                              predictions_description)
+
+# Save predictions, should be in the form 'list of tuples' or 'list of lists'
+with open(submission_file, 'w') as submission_writer:
+    # Formates data
+    predictions = [map(str, row) for row in predictions]
+    predictions = [','.join(row) for row in predictions]
+    predictions = 'Id,Rating\n' + '\n'.join(predictions)
+
+    # Writes it dowmn
+    submission_writer.write(predictions)
+
+print("end")
