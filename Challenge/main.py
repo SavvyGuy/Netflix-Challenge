@@ -1,10 +1,7 @@
 import numpy as np
 import pandas as pd
 from random import randint
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics.pairwise import pairwise_distances
-from scipy import sparse
-from sklearn.metrics.pairwise import linear_kernel
+from numpy.linalg.linalg import norm as norm
 
 #####
 ##
@@ -53,29 +50,36 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     # we normalize the ratings by subtracting the average if rating > 0
     ratings_diff = np.where(np.array(utility_matrix > 0), utility_matrix - mean_user_ratings, 0)
 
+    user_similarity = np.zeros((len(users), len(users)))
+
     # similarity matrix for users using cosine similarity
-    user_similarity = pairwise_distances(ratings_diff, metric='cosine')
+
+    user_similarity = ratings_diff.dot(ratings_diff.T) + 1e-9
+
+    norms = np.array([np.sqrt(np.diagonal(user_similarity))])
+
+    user_similarity = user_similarity / norms / norms.T
 
     # prediction_matrix
     pred = np.zeros((len(users), len(movies)))
 
     # collaborative filtering using knn algorithm
 
-    # total = ratings_diff.shape[0] * ratings_diff.shape[1]
-    # p = 0
-    #
-    # for i in range(ratings_diff.shape[0]):
-    #     top_k_users = [np.argsort(user_similarity[:, i])[:-20 - 1:-1]]
-    #     for j in range(ratings_diff.shape[1]):
-    #         pred[i, j] = user_similarity[i, :][top_k_users].dot(ratings_diff[:, j][top_k_users])
-    #         pred[i, j] /= np.sum(np.abs(user_similarity[i, :][top_k_users]))
-    #         p += 1
-    #     print('Progress: {:4.2f}%'.format(p / total * 100))
-    # pred = mean_user_ratings + pred
+    total = ratings_diff.shape[0] * ratings_diff.shape[1]
+    p = 0
+
+    for i in range(ratings_diff.shape[0]):
+        top_k_users = [np.argsort(user_similarity[:, i])[:-50 - 1:-1]]
+        for j in range(ratings_diff.shape[1]):
+            pred[i, j] = user_similarity[i, :][top_k_users].dot(ratings_diff[:, j][top_k_users])
+            pred[i, j] /= np.sum(np.abs(user_similarity[i, :][top_k_users]))
+            p += 1
+        print('Progress: {:4.2f}%'.format(p / total * 100))
+    pred = mean_user_ratings + pred
 
     # collaborative filtering without knn algorithm
-    pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
-                                                                   np.newaxis]
+    # pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
+    #                                                                np.newaxis]
 
     # result matrix for submission
     result = np.zeros((len(predictions), 2), dtype=int)
