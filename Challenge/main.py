@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from random import randint
-from numpy.linalg.linalg import norm as norm
 
 #####
 ##
@@ -86,6 +85,7 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 
     count = 0
 
+
     # populate result matrix with rounded predictions
     for row in predictions.itertuples():
         result[count, 0] = count + 1
@@ -102,7 +102,42 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 #####
 
 def predict_latent_factors(movies, users, ratings, predictions):
-    ## TO COMPLETE
+
+    # users x movies matrix
+    utility_matrix = np.zeros((len(users), len(movies)))
+
+    # populate utility matrix with ratins
+    for i in ratings.itertuples():
+        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
+
+    # we perform the svd
+    q, s, v = np.linalg.svd(utility_matrix)
+    # pt = s * v
+
+    # we find the full energy and the minimal allowed energy required (80%)
+    energy = np.sum(np.square(s))
+    min_energy = 0.8 * energy
+
+    # record the number of the least significant singular values we can remove
+    singular_values = s.diagonal()
+    sv_number = len(singular_values)
+
+    # remove tells us the number of singular values that can be made 0
+    remove = 0
+    # removed_energy tells the amount of energy lost after we remove a singular value
+    removed_energy = 0
+
+    for i in range (sv_number - 1,0, -1):
+        removed_energy = np.square(singular_values[i]) + removed_energy
+        if energy - removed_energy < min_energy:
+            break
+        remove = remove + 1
+
+    # we set the least significant singular values to 0
+    s[:,sv_number - remove: sv_number + 1] = 0
+
+    # we find factorization matrix P transposed
+    p = s * v
 
     pass
 
