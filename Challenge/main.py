@@ -77,11 +77,11 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     pred = mean_user_ratings + pred
 
     # collaborative filtering without knn algorithm
-    # pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
-    #                                                                np.newaxis]
+    #pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
+    #                                                               np.newaxis]
 
-    # result matrix for submission
-    result = np.zeros((len(predictions), 2), dtype=int)
+    # # result matrix for submission
+    result = np.zeros((len(predictions), 2), dtype=object)
 
     count = 0
 
@@ -89,8 +89,9 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     # populate result matrix with rounded predictions
     for row in predictions.itertuples():
         result[count, 0] = count + 1
-        result[count, 1] = int(round(pred[row[1] - 1, row[2] - 1], 0))
+        result[count, 1] = pred[row[1] - 1, row[2] - 1]
         count += 1
+
 
     return result
 
@@ -103,20 +104,25 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 
 def predict_latent_factors(movies, users, ratings, predictions):
 
-    # users x movies matrix
+
+    # # users x movies matrix
     utility_matrix = np.zeros((len(users), len(movies)))
 
-    # populate utility matrix with ratins
+    #populate utility matrix with ratings
     for i in ratings.itertuples():
         utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
+
+
     # we perform the svd
-    q, s, v = np.linalg.svd(utility_matrix)
+    q, s, v = np.linalg.svd(utility_matrix, full_matrices=False)
     # pt = s * v
 
     # we find the full energy and the minimal allowed energy required (80%)
     energy = np.sum(np.square(s))
     min_energy = 0.8 * energy
+
+    s = np.diag(s)
 
     # record the number of the least significant singular values we can remove
     singular_values = s.diagonal()
@@ -137,7 +143,7 @@ def predict_latent_factors(movies, users, ratings, predictions):
     s[:,sv_number - remove: sv_number + 1] = 0
 
     # we find factorization matrix P transposed
-    p = s * v
+    p = s.dot(v)
 
     pass
 
@@ -180,9 +186,13 @@ def predict_randoms(movies, users, ratings, predictions):
 
 ## //!!\\ TO CHANGE by your prediction function
 
-# predict collaborative filtering
+
+predict_latent_factors(movies_description, users_description, ratings_description, predictions_description)
 predictions = predict_collaborative_filtering(movies_description, users_description, ratings_description,
-                                              predictions_description)
+                                               predictions_description)
+
+# predict collaborative filtering
+
 
 # Save predictions, should be in the form 'list of tuples' or 'list of lists'
 with open(submission_file, 'w') as submission_writer:
