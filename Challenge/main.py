@@ -102,6 +102,12 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 ##
 #####
 
+# calculation for rmse
+def rmse(pred, rating):
+    pred = pred.flatten()
+    rating = rating.flatten()
+    return np.sqrt((np.sum((rating-pred)**2))/rating.shape[0])
+
 def predict_latent_factors(movies, users, ratings, predictions):
 
 
@@ -115,7 +121,7 @@ def predict_latent_factors(movies, users, ratings, predictions):
 
 
     # we perform the svd
-    q, s, v = np.linalg.svd(utility_matrix, full_matrices=False)
+    p, s, v = np.linalg.svd(utility_matrix, full_matrices=False)
     # pt = s * v
 
     # we find the full energy and the minimal allowed energy required (80%)
@@ -143,8 +149,22 @@ def predict_latent_factors(movies, users, ratings, predictions):
     s[:,sv_number - remove: sv_number + 1] = 0
 
     # we find factorization matrix P transposed
-    p = s.dot(v)
+    q = s.dot(v)
 
+    users = [i for i in range(len(utility_matrix[0,:]))]
+    items = [i for i in range(len(utility_matrix[:, 0]))]
+
+    #
+    print(rmse(utility_matrix, p@q))
+
+    # we perform gradient descent and update the
+    for i in range(0,3):
+        for n, m in zip(np.arange(len(utility_matrix[0,:])), np.arange(len(utility_matrix[:,0]))):
+            err = utility_matrix[n, m] - np.dot(p[n,:], q[:, m])
+            p[n, :] += 0.1 * (err * q[:, m] - 0.001 * p[n, :])
+            q[:, m] += 0.1 * (err * p[n, :] - 0.001 * q[:, m])
+
+        print(rmse(utility_matrix, p@q))
     pass
 
 
