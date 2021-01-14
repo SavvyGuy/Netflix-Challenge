@@ -9,6 +9,8 @@ from random import randint
 #####
 
 # Where data is located
+from sklearn.metrics import mean_squared_error
+
 movies_file = './data/movies.csv'
 users_file = './data/users.csv'
 ratings_file = './data/ratings.csv'
@@ -103,14 +105,12 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 #####
 
 # calculation for rmse
-def rmse(pred, rating):
-    pred = pred.flatten()
-    rating = rating.flatten()
-    return np.sqrt((np.sum((rating-pred)**2))/rating.shape[0])
+def rmse(prediction, ground_truth):
+    prediction = prediction[ground_truth.nonzero()].flatten()
+    ground_truth = ground_truth[ground_truth.nonzero()].flatten()
+    return np.sqrt(mean_squared_error(prediction, ground_truth))
 
 def predict_latent_factors(movies, users, ratings, predictions):
-
-
     # # users x movies matrix
     utility_matrix = np.zeros((len(users), len(movies)))
 
@@ -118,54 +118,80 @@ def predict_latent_factors(movies, users, ratings, predictions):
     for i in ratings.itertuples():
         utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
+    m, n = utility_matrix.shape
+
+    #set random P and Q with 10 factors
+    P = np.random.rand(m, 10)
+    Q = np.random.rand(10, n)
+
+    #set gamma and learning rate
+    lamda = 0.01
+    gamma = 0.001
+
+    #gradient descent
+    for epoch in range(100):
+        print(epoch)
+        for row in ratings.itertuples():
+            eui = row[3] - np.dot(P[row[1]-1, :], Q[:, row[2]-1])
+            P[row[1]-1, :] = P[row[1]-1, :] + gamma * 2 * (eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
+            Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * 2 * (eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
+
+    #predicted ratings
+    pred = P @ Q
+
+    #store predicted ratings in a csv file
+    pd.DataFrame(pred).to_csv("./data/latent_factors.csv", header=None, index=None)
 
 
-    # we perform the svd
-    p, s, v = np.linalg.svd(utility_matrix, full_matrices=False)
-    # pt = s * v
+    return pred
 
-    # we find the full energy and the minimal allowed energy required (80%)
-    energy = np.sum(np.square(s))
-    min_energy = 0.8 * energy
+    ### for later - improvement
 
-    s = np.diag(s)
-
-    # record the number of the least significant singular values we can remove
-    singular_values = s.diagonal()
-    sv_number = len(singular_values)
-
-    # remove tells us the number of singular values that can be made 0
-    remove = 0
-    # removed_energy tells the amount of energy lost after we remove a singular value
-    removed_energy = 0
-
-    for i in range (sv_number - 1,0, -1):
-        removed_energy = np.square(singular_values[i]) + removed_energy
-        if energy - removed_energy < min_energy:
-            break
-        remove = remove + 1
-
-    # we set the least significant singular values to 0
-    s[:,sv_number - remove: sv_number + 1] = 0
-
-    # we find factorization matrix P transposed
-    q = s.dot(v)
-
-    users = [i for i in range(len(utility_matrix[0,:]))]
-    items = [i for i in range(len(utility_matrix[:, 0]))]
-
+    # # pt = s * v
     #
-    print(rmse(utility_matrix, p@q))
+    # # we find the full energy and the minimal allowed energy required (80%)
+    # energy = np.sum(np.square(s))
+    # min_energy = 0.8 * energy
+    #
+    # s = np.diag(s)
+    #
+    # # record the number of the least significant singular values we can remove
+    # singular_values = s.diagonal()
+    # sv_number = len(singular_values)
+    #
+    # # remove tells us the number of singular values that can be made 0
+    # remove = 0
+    # # removed_energy tells the amount of energy lost after we remove a singular value
+    # removed_energy = 0
+    #
+    # for i in range (sv_number - 1,0, -1):
+    #     removed_energy = np.square(singular_values[i]) + removed_energy
+    #     if energy - removed_energy < min_energy:
+    #         break
+    #     remove = remove + 1
+    #
+    # # we set the least significant singular values to 0
+    # s[:,sv_number - remove: sv_number + 1] = 0
+    #
+    # # we find factorization matrix P transposed
+    # q = s.dot(v)
 
-    # we perform gradient descent and update the
-    for i in range(0,3):
-        for n, m in zip(np.arange(len(utility_matrix[0,:])), np.arange(len(utility_matrix[:,0]))):
-            err = utility_matrix[n, m] - np.dot(p[n,:], q[:, m])
-            p[n, :] += 0.1 * (err * q[:, m] - 0.001 * p[n, :])
-            q[:, m] += 0.1 * (err * p[n, :] - 0.001 * q[:, m])
 
-        print(rmse(utility_matrix, p@q))
-    pass
+
+    # users = [i for i in range(len(utility_matrix[0,:]))]
+    # items = [i for i in range(len(utility_matrix[:, 0]))]
+    #
+    # #
+    # print(rmse(utility_matrix, p@q))
+    #
+    # # we perform gradient descent and update the
+    # for i in range(0,3):
+    #     for n, m in zip(np.arange(len(utility_matrix[0,:])), np.arange(len(utility_matrix[:,0]))):
+    #         err = utility_matrix[n, m] - np.dot(p[n,:], q[:, m])
+    #         p[n, :] += 0.001 * (err * q[:, m] - 0.1 * p[n, :])
+    #         q[:, m] += 0.001 * (err * p[n, :] - 0.1 * q[:, m])
+    #
+    #     print(rmse(utility_matrix, p@q))
 
 
 #####
@@ -207,9 +233,9 @@ def predict_randoms(movies, users, ratings, predictions):
 ## //!!\\ TO CHANGE by your prediction function
 
 
-predict_latent_factors(movies_description, users_description, ratings_description, predictions_description)
-predictions = predict_collaborative_filtering(movies_description, users_description, ratings_description,
-                                               predictions_description)
+predictions = predict_latent_factors(movies_description, users_description, ratings_description, predictions_description)
+# predictions = predict_collaborative_filtering(movies_description, users_description, predo,
+#                                                predictions_description)
 
 # predict collaborative filtering
 
