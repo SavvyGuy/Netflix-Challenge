@@ -128,6 +128,9 @@ def predict_latent_factors(movies, users, ratings, predictions):
     lamda = 0.01
     gamma = 0.001
 
+
+
+
     #gradient descent
     for epoch in range(100):
         print(epoch)
@@ -135,6 +138,7 @@ def predict_latent_factors(movies, users, ratings, predictions):
             eui = row[3] - np.dot(P[row[1]-1, :], Q[:, row[2]-1])
             P[row[1]-1, :] = P[row[1]-1, :] + gamma * 2 * (eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
             Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * 2 * (eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
+
 
     #predicted ratings
     pred = P @ Q
@@ -201,7 +205,29 @@ def predict_latent_factors(movies, users, ratings, predictions):
 #####
 
 def predict_final(movies, users, ratings, predictions):
-    ## TO COMPLETE
+    # # users x movies matrix
+    utility_matrix = np.zeros((len(users), len(movies)))
+
+    #populate utility matrix with ratings
+    for i in ratings.itertuples():
+        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
+
+    mean_users = np.average(utility_matrix, axis=1, weights=(utility_matrix > 0))
+
+    no_rating_indices = np.where(~utility_matrix.any(axis=0))[0]
+
+    mean_movies = np.zeros(utility_matrix.shape[1])
+
+    for i in range (0, utility_matrix.shape[1]) :
+        if not(i in no_rating_indices):
+            mean_movies[i] = np.average(utility_matrix[:,i], weights=(utility_matrix[:, i] > 0))
+
+    mean_rating = np.average(utility_matrix, weights=(utility_matrix > 0))
+
+    user_biases = mean_users - mean_rating
+
+    movie_biases = mean_movies - mean_rating
+
 
     pass
 
