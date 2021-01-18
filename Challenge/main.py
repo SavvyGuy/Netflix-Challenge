@@ -36,12 +36,14 @@ predictions_description = pd.read_csv(predictions_file, delimiter=';', names=['u
 #####
 
 def predict_collaborative_filtering(movies, users, ratings, predictions):
-    # users x movies matrix
-    utility_matrix = np.zeros((len(users), len(movies)))
+    # # users x movies matrix
+    # utility_matrix = np.zeros((len(users), len(movies)))
+    #
+    # # populate utility matrix with ratins
+    # for i in ratings.itertuples():
+    #     utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
-    # populate utility matrix with ratins
-    for i in ratings.itertuples():
-        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
+    utility_matrix = ratings
 
     # calculate similarity matrix using pearson correlation coefficient
 
@@ -82,20 +84,20 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     #pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
     #                                                               np.newaxis]
 
-    # # result matrix for submission
-    result = np.zeros((len(predictions), 2), dtype=object)
+    # # # result matrix for submission
+    # result = np.zeros((len(predictions), 2), dtype=object)
+    #
+    # count = 0
+    #
+    #
+    # # populate result matrix with rounded predictions
+    # for row in predictions.itertuples():
+    #     result[count, 0] = count + 1
+    #     result[count, 1] = pred[row[1] - 1, row[2] - 1]
+    #     count += 1
 
-    count = 0
 
-
-    # populate result matrix with rounded predictions
-    for row in predictions.itertuples():
-        result[count, 0] = count + 1
-        result[count, 1] = pred[row[1] - 1, row[2] - 1]
-        count += 1
-
-
-    return result
+    return pred
 
 
 #####
@@ -128,9 +130,6 @@ def predict_latent_factors(movies, users, ratings, predictions):
     lamda = 0.01
     gamma = 0.001
 
-
-
-
     #gradient descent
     for epoch in range(100):
         print(epoch)
@@ -142,9 +141,6 @@ def predict_latent_factors(movies, users, ratings, predictions):
 
     #predicted ratings
     pred = P @ Q
-
-    #store predicted ratings in a csv file
-    pd.DataFrame(pred).to_csv("./data/latent_factors.csv", header=None, index=None)
 
 
     return pred
@@ -228,8 +224,49 @@ def predict_final(movies, users, ratings, predictions):
 
     movie_biases = mean_movies - mean_rating
 
+    m, n = utility_matrix.shape
 
-    pass
+    #set random P and Q with 16 factors
+    P = np.zeros((m, 16))
+    Q = np.zeros((16, n))
+
+    #set gamma and learning rate
+    lamda = 0.01
+    gamma = 0.01
+
+
+
+    #gradient descent
+    for epoch in range(50):
+        print(epoch)
+        for row in ratings.itertuples():
+            #row[1] -> user index
+            #row[2] -> movie index
+            #row[3] -> rating (we exclude the 0 ratings)
+            eui = (row[3]/mean_users[row[1]-1]) - np.dot(P[row[1]-1, :], Q[:, row[2]-1]) - user_biases[row[1]-1] - movie_biases[row[2]-1]
+            P[row[1]-1, :] = P[row[1]-1, :] + gamma * 2 * (eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
+            Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * 2 * (eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
+            user_biases[row[1] - 1] += gamma * 2 * (eui - lamda * user_biases[row[1] - 1])
+            movie_biases[row[2] - 1] += gamma * 2 * (eui - lamda * movie_biases[row[2] - 1])
+
+
+    pred = P @ Q
+
+    # # result matrix for submission
+    result = np.zeros((len(predictions), 2), dtype=object)
+
+    count = 0
+
+    # populate result matrix with rounded predictions
+    for row in predictions.itertuples():
+        result[count, 0] = count + 1
+        result[count, 1] = pred[row[1] - 1, row[2] - 1] + movie_biases[row[2]-1] + user_biases[row[1]-1] + mean_users[row[1]-1]
+        count += 1
+
+    return result
+
+
+
 
 
 def predict_randoms(movies, users, ratings, predictions):
@@ -259,9 +296,8 @@ def predict_randoms(movies, users, ratings, predictions):
 ## //!!\\ TO CHANGE by your prediction function
 
 
-predictions = predict_latent_factors(movies_description, users_description, ratings_description, predictions_description)
-# predictions = predict_collaborative_filtering(movies_description, users_description, predo,
-#                                                predictions_description)
+predictions = predict_final(movies_description, users_description, ratings_description, predictions_description)
+
 
 # predict collaborative filtering
 
