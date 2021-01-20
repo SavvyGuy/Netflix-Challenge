@@ -35,15 +35,38 @@ predictions_description = pd.read_csv(predictions_file, delimiter=';', names=['u
 ##
 #####
 
-def predict_collaborative_filtering(movies, users, ratings, predictions):
-    # # users x movies matrix
-    # utility_matrix = np.zeros((len(users), len(movies)))
-    #
-    # # populate utility matrix with ratins
-    # for i in ratings.itertuples():
-    #     utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
-    utility_matrix = ratings
+def predict_collaborative_item_based(movies, users, ratings, predictions):
+    # movies x users matrix
+    utility_matrix = np.zeros((len(movies), len(users)))
+
+    # populate utility matrix with rating
+    for i in ratings.itertuples():
+        utility_matrix[i[2] - 1, i[1] - 1] = i[3]
+
+    item_similarity = np.zeros((len(movies), len(movies)))
+
+    # similarity matrix for users using cosine similarity
+
+    item_similarity = utility_matrix.dot(utility_matrix.T) + 1e-9
+
+    norms = np.array([np.sqrt(np.diagonal(item_similarity))])
+
+    item_similarity= item_similarity / norms / norms.T
+
+
+
+
+
+def predict_collaborative_filtering(movies, users, ratings, predictions):
+    # users x movies matrix
+    utility_matrix = np.zeros((len(users), len(movies)))
+
+    # populate utility matrix with ratins
+    for i in ratings.itertuples():
+        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
+
+
 
     # calculate similarity matrix using pearson correlation coefficient
 
@@ -214,7 +237,7 @@ def predict_final(movies, users, ratings, predictions):
 
     mean_movies = np.zeros(utility_matrix.shape[1])
 
-    for i in range (0, utility_matrix.shape[1]) :
+    for i in range(0, utility_matrix.shape[1]) :
         if not(i in no_rating_indices):
             mean_movies[i] = np.average(utility_matrix[:,i], weights=(utility_matrix[:, i] > 0))
 
@@ -227,43 +250,33 @@ def predict_final(movies, users, ratings, predictions):
     m, n = utility_matrix.shape
 
     #set random P and Q with 16 factors
-    P = np.zeros((m, 16))
-    Q = np.zeros((16, n))
+    P = np.random.normal(0, 0.1, (m, 7))
+    Q = np.random.normal(0, 0.1, (7, n))
 
     #set gamma and learning rate
     lamda = 0.01
-    gamma = 0.01
+    gamma = 0.001
 
 
 
     #gradient descent
-    for epoch in range(50):
+    for epoch in range(100):
         print(epoch)
         for row in ratings.itertuples():
             #row[1] -> user index
             #row[2] -> movie index
             #row[3] -> rating (we exclude the 0 ratings)
-            eui = (row[3]/mean_users[row[1]-1]) - np.dot(P[row[1]-1, :], Q[:, row[2]-1]) - user_biases[row[1]-1] - movie_biases[row[2]-1]
-            P[row[1]-1, :] = P[row[1]-1, :] + gamma * 2 * (eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
-            Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * 2 * (eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
-            user_biases[row[1] - 1] += gamma * 2 * (eui - lamda * user_biases[row[1] - 1])
-            movie_biases[row[2] - 1] += gamma * 2 * (eui - lamda * movie_biases[row[2] - 1])
+            eui = row[3] - np.dot(P[row[1]-1, :], Q[:, row[2]-1]) - user_biases[row[1]-1] - movie_biases[row[2]-1] - mean_rating
+            P[row[1]-1, :] = P[row[1]-1, :] + gamma * (2 * eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
+            Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * (2 * eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
+            user_biases[row[1] - 1] += gamma * (2 * eui - lamda * user_biases[row[1] - 1])
+            movie_biases[row[2] - 1] += gamma * (2 * eui - lamda * movie_biases[row[2] - 1])
 
 
     pred = P @ Q
 
-    # # result matrix for submission
-    result = np.zeros((len(predictions), 2), dtype=object)
 
-    count = 0
-
-    # populate result matrix with rounded predictions
-    for row in predictions.itertuples():
-        result[count, 0] = count + 1
-        result[count, 1] = pred[row[1] - 1, row[2] - 1] + movie_biases[row[2]-1] + user_biases[row[1]-1] + mean_users[row[1]-1]
-        count += 1
-
-    return result
+    return pred
 
 
 
@@ -296,10 +309,23 @@ def predict_randoms(movies, users, ratings, predictions):
 ## //!!\\ TO CHANGE by your prediction function
 
 
-predictions = predict_final(movies_description, users_description, ratings_description, predictions_description)
+# predictions_1 = predict_final(movies_description, users_description, ratings_description, predictions_description)
+pred_matrix = predict_final(movies_description, users_description, ratings_description, predictions_description)
 
+# pred_matrix = 0.7 * predictions_2 + 0.3 * predictions_1
 
-# predict collaborative filtering
+# # result matrix for submission
+result = np.zeros((len(predictions_description), 2), dtype=object)
+
+count = 0
+
+# populate result matrix with rounded predictions
+for row in predictions_description.itertuples():
+    result[count, 0] = count + 1
+    result[count, 1] = pred_matrix[row[1] - 1, row[2] - 1]
+    count += 1
+
+predictions = result
 
 
 # Save predictions, should be in the form 'list of tuples' or 'list of lists'
