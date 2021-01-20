@@ -52,7 +52,39 @@ def predict_collaborative_item_based(movies, users, ratings, predictions):
 
     norms = np.array([np.sqrt(np.diagonal(item_similarity))])
 
-    item_similarity= item_similarity / norms / norms.T
+    item_similarity = item_similarity / (norms @ norms.T)
+
+    # prediction_matrix
+    pred = np.zeros((len(movies), len(users)))
+
+    # collaborative filtering using knn algorithm
+
+    total = utility_matrix.shape[0] * utility_matrix.shape[1]
+    p = 0
+
+    for i in range(utility_matrix.shape[0]):
+        top_k_users = [np.argsort(item_similarity[:, i])[:-5 - 1:-1]]
+        for j in range(utility_matrix.shape[1]):
+            pred[i, j] = item_similarity[i, :][top_k_users].dot(utility_matrix[:, j][top_k_users])
+            pred[i, j] /= np.sum(np.abs(item_similarity[i, :][top_k_users]))
+            p += 1
+        print('Progress: {:4.2f}%'.format(p / total * 100))
+
+    # # result matrix for submission
+    result = np.zeros((len(predictions), 2), dtype=object)
+
+    count = 0
+
+
+    # populate result matrix with rounded predictions
+    for row in predictions.itertuples():
+        result[count, 0] = count + 1
+        result[count, 1] = pred[row[2] - 1, row[1] - 1]
+        count += 1
+
+
+    return result
+
 
 
 
@@ -310,22 +342,22 @@ def predict_randoms(movies, users, ratings, predictions):
 
 
 # predictions_1 = predict_final(movies_description, users_description, ratings_description, predictions_description)
-pred_matrix = predict_final(movies_description, users_description, ratings_description, predictions_description)
+predictions = predict_collaborative_item_based(movies_description, users_description, ratings_description, predictions_description)
 
-# pred_matrix = 0.7 * predictions_2 + 0.3 * predictions_1
-
-# # result matrix for submission
-result = np.zeros((len(predictions_description), 2), dtype=object)
-
-count = 0
-
-# populate result matrix with rounded predictions
-for row in predictions_description.itertuples():
-    result[count, 0] = count + 1
-    result[count, 1] = pred_matrix[row[1] - 1, row[2] - 1]
-    count += 1
-
-predictions = result
+# # pred_matrix = 0.7 * predictions_2 + 0.3 * predictions_1
+#
+# # # result matrix for submission
+# result = np.zeros((len(predictions_description), 2), dtype=object)
+#
+# count = 0
+#
+# # populate result matrix with rounded predictions
+# for row in predictions_description.itertuples():
+#     result[count, 0] = count + 1
+#     result[count, 1] = pred_matrix[row[1] - 1, row[2] - 1]
+#     count += 1
+#
+# predictions = result
 
 
 # Save predictions, should be in the form 'list of tuples' or 'list of lists'
