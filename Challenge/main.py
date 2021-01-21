@@ -3,13 +3,21 @@ import pandas as pd
 from random import randint
 
 #####
+## NetIDs
+## nmouman
+## nntasi
+#####
+
+
+
+
+#####
 ##
 ## DATA IMPORT
 ##
 #####
 
 # Where data is located
-from sklearn.metrics import mean_squared_error
 
 movies_file = './data/movies.csv'
 users_file = './data/users.csv'
@@ -31,63 +39,74 @@ predictions_description = pd.read_csv(predictions_file, delimiter=';', names=['u
 
 #####
 ##
+## GET PREDICTED RATINGS
+##
+#####
+
+def get_prediction(predictions, pred_matrix):
+    # result matrix for submission
+    result = np.zeros((len(predictions_description), 2), dtype=object)
+
+    count = 0
+
+    # populate result matrix with rounded predictions
+    for row in predictions.itertuples():
+        result[count, 0] = count + 1
+        result[count, 1] = pred_matrix[row[1] - 1, row[2] - 1]
+        count += 1
+
+    return result
+
+
+#####
+##
 ## COLLABORATIVE FILTERING
 ##
 #####
 
 
 def predict_collaborative_item_based(movies, users, ratings, predictions):
-    # movies x users matrix
-    utility_matrix = np.zeros((len(movies), len(users)))
+    # users x movies matrix
+    utility_matrix = np.zeros((len(users), len(movies)))
 
-    # populate utility matrix with rating
+    # populate utility matrix with ratings
     for i in ratings.itertuples():
-        utility_matrix[i[2] - 1, i[1] - 1] = i[3]
+        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
-    item_similarity = np.zeros((len(movies), len(movies)))
+    # find movies with no rating
+    no_rating_indices = np.where(~utility_matrix.any(axis=0))[0]
 
-    # similarity matrix for users using cosine similarity
+    # calculate mean for each movie
+    mean_item_ratings = np.zeros(utility_matrix.shape[1])
 
-    item_similarity = utility_matrix.dot(utility_matrix.T) + 1e-9
+    for i in range(0, utility_matrix.shape[1]):
+        if not (i in no_rating_indices):
+            mean_item_ratings[i] = np.average(utility_matrix[:, i], weights=(utility_matrix[:, i] > 0))
 
-    norms = np.array([np.sqrt(np.diagonal(item_similarity))])
+    mean_item_ratings = mean_item_ratings[np.newaxis, :]
 
-    item_similarity = item_similarity / (norms @ norms.T)
+    # we normalize the ratings by subtracting the average if rating > 0
+    ratings_diff = np.where(np.array(utility_matrix > 0), utility_matrix - mean_item_ratings, 0)
 
-    # prediction_matrix
-    pred = np.zeros((len(movies), len(users)))
+    # calculate similarity matrix using pearson correlation coefficient (add epsilon to avoid division by 0)
+    item_similarity = np.corrcoef(ratings_diff.T + 1e-9)
+
+    # initialize prediction_matrix
+    pred = np.zeros((len(users), len(movies)))
 
     # collaborative filtering using knn algorithm
 
-    total = utility_matrix.shape[0] * utility_matrix.shape[1]
-    p = 0
+    for j in range(ratings_diff.shape[1]):
+        # find indices of 50 most similar items
+        top_k_items = [np.argsort(item_similarity[:, j])[:-50 - 1:-1]]
+        for i in range(ratings_diff.shape[0]):
+            pred[i, j] = item_similarity[j, :][top_k_items].dot(ratings_diff[i, :][top_k_items].T)
+            pred[i, j] /= np.sum(np.abs(item_similarity[j, :][top_k_items]))
 
-    for i in range(utility_matrix.shape[0]):
-        top_k_users = [np.argsort(item_similarity[:, i])[:-5 - 1:-1]]
-        for j in range(utility_matrix.shape[1]):
-            pred[i, j] = item_similarity[i, :][top_k_users].dot(utility_matrix[:, j][top_k_users])
-            pred[i, j] /= np.sum(np.abs(item_similarity[i, :][top_k_users]))
-            p += 1
-        print('Progress: {:4.2f}%'.format(p / total * 100))
+    # add mean of item to prediction
+    pred += mean_item_ratings
 
-    # # result matrix for submission
-    result = np.zeros((len(predictions), 2), dtype=object)
-
-    count = 0
-
-
-    # populate result matrix with rounded predictions
-    for row in predictions.itertuples():
-        result[count, 0] = count + 1
-        result[count, 1] = pred[row[2] - 1, row[1] - 1]
-        count += 1
-
-
-    return result
-
-
-
-
+    return get_prediction(predictions, pred)
 
 
 def predict_collaborative_filtering(movies, users, ratings, predictions):
@@ -98,10 +117,6 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     for i in ratings.itertuples():
         utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
-
-
-    # calculate similarity matrix using pearson correlation coefficient
-
     # we first calculate the average movie rating per user
     mean_user_ratings = np.average(utility_matrix, axis=1, weights=(utility_matrix > 0))[:, np.newaxis]
 
@@ -110,49 +125,26 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 
     user_similarity = np.zeros((len(users), len(users)))
 
-    # similarity matrix for users using cosine similarity
-
-    user_similarity = ratings_diff.dot(ratings_diff.T) + 1e-9
-
-    norms = np.array([np.sqrt(np.diagonal(user_similarity))])
-
-    user_similarity = user_similarity / norms / norms.T
+    # calculate similarity matrix using pearson correlation coefficient (add epsilon to avoid division by 0)
+    user_similarity = np.corrcoef(ratings_diff + 1e-9)
 
     # prediction_matrix
     pred = np.zeros((len(users), len(movies)))
 
     # collaborative filtering using knn algorithm
-
     total = ratings_diff.shape[0] * ratings_diff.shape[1]
-    p = 0
 
     for i in range(ratings_diff.shape[0]):
+        # find indices of 50 most similar users
         top_k_users = [np.argsort(user_similarity[:, i])[:-50 - 1:-1]]
         for j in range(ratings_diff.shape[1]):
             pred[i, j] = user_similarity[i, :][top_k_users].dot(ratings_diff[:, j][top_k_users])
             pred[i, j] /= np.sum(np.abs(user_similarity[i, :][top_k_users]))
-            p += 1
-        print('Progress: {:4.2f}%'.format(p / total * 100))
+
+    # add mean of user to predictions
     pred = mean_user_ratings + pred
 
-    # collaborative filtering without knn algorithm
-    #pred = mean_user_ratings + user_similarity.dot(ratings_diff) / np.sum(np.abs(user_similarity), axis=1)[:,
-    #                                                               np.newaxis]
-
-    # # # result matrix for submission
-    # result = np.zeros((len(predictions), 2), dtype=object)
-    #
-    # count = 0
-    #
-    #
-    # # populate result matrix with rounded predictions
-    # for row in predictions.itertuples():
-    #     result[count, 0] = count + 1
-    #     result[count, 1] = pred[row[1] - 1, row[2] - 1]
-    #     count += 1
-
-
-    return pred
+    return get_prediction(predictions, pred)
 
 
 #####
@@ -161,157 +153,130 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
 ##
 #####
 
-# calculation for rmse
-def rmse(prediction, ground_truth):
-    prediction = prediction[ground_truth.nonzero()].flatten()
-    ground_truth = ground_truth[ground_truth.nonzero()].flatten()
-    return np.sqrt(mean_squared_error(prediction, ground_truth))
 
 def predict_latent_factors(movies, users, ratings, predictions):
-    # # users x movies matrix
+    # users x movies matrix
     utility_matrix = np.zeros((len(users), len(movies)))
 
-    #populate utility matrix with ratings
+    # populate utility matrix with ratings
     for i in ratings.itertuples():
         utility_matrix[i[1] - 1, i[2] - 1] = i[3]
 
     m, n = utility_matrix.shape
 
-    #set random P and Q with 10 factors
+    # set random P and Q with 10 factors
     P = np.random.rand(m, 10)
     Q = np.random.rand(10, n)
 
-    #set gamma and learning rate
+    # set gamma and lambda
+    # lambda -> regularization factor
+    # gamma -> learning step
     lamda = 0.01
     gamma = 0.001
 
-    #gradient descent
+    # stochastic gradient descent
     for epoch in range(100):
         print(epoch)
         for row in ratings.itertuples():
-            eui = row[3] - np.dot(P[row[1]-1, :], Q[:, row[2]-1])
-            P[row[1]-1, :] = P[row[1]-1, :] + gamma * 2 * (eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
-            Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * 2 * (eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
+            # row[1] -> user index
+            # row[2] -> movie index
+            # row[3] -> rating (we exclude the 0 ratings)
 
+            # calculate error
+            eui = row[3] - np.dot(P[row[1] - 1, :], Q[:, row[2] - 1])
+            # update P and Q
+            P[row[1] - 1, :] = P[row[1] - 1, :] + gamma * 2 * (eui * Q[:, row[2] - 1] - lamda * P[row[1] - 1, :])
+            Q[:, row[2] - 1] = Q[:, row[2] - 1] + gamma * 2 * (eui * P[row[1] - 1, :] - lamda * Q[:, row[2] - 1])
 
-    #predicted ratings
+    # predicted ratings
     pred = P @ Q
 
-
-    return pred
-
-    ### for later - improvement
-
-    # # pt = s * v
-    #
-    # # we find the full energy and the minimal allowed energy required (80%)
-    # energy = np.sum(np.square(s))
-    # min_energy = 0.8 * energy
-    #
-    # s = np.diag(s)
-    #
-    # # record the number of the least significant singular values we can remove
-    # singular_values = s.diagonal()
-    # sv_number = len(singular_values)
-    #
-    # # remove tells us the number of singular values that can be made 0
-    # remove = 0
-    # # removed_energy tells the amount of energy lost after we remove a singular value
-    # removed_energy = 0
-    #
-    # for i in range (sv_number - 1,0, -1):
-    #     removed_energy = np.square(singular_values[i]) + removed_energy
-    #     if energy - removed_energy < min_energy:
-    #         break
-    #     remove = remove + 1
-    #
-    # # we set the least significant singular values to 0
-    # s[:,sv_number - remove: sv_number + 1] = 0
-    #
-    # # we find factorization matrix P transposed
-    # q = s.dot(v)
-
-
-
-    # users = [i for i in range(len(utility_matrix[0,:]))]
-    # items = [i for i in range(len(utility_matrix[:, 0]))]
-    #
-    # #
-    # print(rmse(utility_matrix, p@q))
-    #
-    # # we perform gradient descent and update the
-    # for i in range(0,3):
-    #     for n, m in zip(np.arange(len(utility_matrix[0,:])), np.arange(len(utility_matrix[:,0]))):
-    #         err = utility_matrix[n, m] - np.dot(p[n,:], q[:, m])
-    #         p[n, :] += 0.001 * (err * q[:, m] - 0.1 * p[n, :])
-    #         q[:, m] += 0.001 * (err * p[n, :] - 0.1 * q[:, m])
-    #
-    #     print(rmse(utility_matrix, p@q))
+    return get_prediction(predictions, pred)
 
 
 #####
 ##
 ## FINAL PREDICTORS
+## LATENT FACTORS WITH BIASES
 ##
 #####
 
 def predict_final(movies, users, ratings, predictions):
-    # # users x movies matrix
-    utility_matrix = np.zeros((len(users), len(movies)))
+    # users x movies matrix
+    utility_matrix = np.zeros((len(movies), len(users)))
 
-    #populate utility matrix with ratings
+    # populate utility matrix with ratings
     for i in ratings.itertuples():
-        utility_matrix[i[1] - 1, i[2] - 1] = i[3]
+        utility_matrix[i[2] - 1, i[1] - 1] = i[3]
 
-    mean_users = np.average(utility_matrix, axis=1, weights=(utility_matrix > 0))
+    # calculate mean of ratings per user
+    mean_users = np.average(utility_matrix, axis=0, weights=(utility_matrix > 0))
 
-    no_rating_indices = np.where(~utility_matrix.any(axis=0))[0]
+    # find indices of movies with no rating
+    no_rating_indices = np.where(~utility_matrix.any(axis=1))[0]
 
-    mean_movies = np.zeros(utility_matrix.shape[1])
+    mean_movies = np.zeros(utility_matrix.shape[0])
 
-    for i in range(0, utility_matrix.shape[1]) :
-        if not(i in no_rating_indices):
-            mean_movies[i] = np.average(utility_matrix[:,i], weights=(utility_matrix[:, i] > 0))
+    # calculate mean of ratings per movie
+    for i in range(0, utility_matrix.shape[0]):
+        if not (i in no_rating_indices):
+            mean_movies[i] = np.average(utility_matrix[i, :], weights=(utility_matrix[i, :] > 0))
 
+    # find average of all ratings
     mean_rating = np.average(utility_matrix, weights=(utility_matrix > 0))
 
+    # calculate biases of users
     user_biases = mean_users - mean_rating
 
+    # calculate biases of movies
     movie_biases = mean_movies - mean_rating
 
     m, n = utility_matrix.shape
 
-    #set random P and Q with 16 factors
-    P = np.random.normal(0, 0.1, (m, 7))
-    Q = np.random.normal(0, 0.1, (7, n))
+    # set random P and Q with 16 factors
+    P = np.random.normal(-0.1, 0.1, (m, 7))
+    Q = np.random.normal(-0.1, 0.1, (7, n))
 
-    #set gamma and learning rate
+    # set gamma and lambda
+    # lambda -> regularization factor
+    # gamma -> learning step
     lamda = 0.01
     gamma = 0.001
 
-
-
-    #gradient descent
+    # stochastic gradient descent
     for epoch in range(100):
         print(epoch)
         for row in ratings.itertuples():
-            #row[1] -> user index
-            #row[2] -> movie index
-            #row[3] -> rating (we exclude the 0 ratings)
-            eui = row[3] - np.dot(P[row[1]-1, :], Q[:, row[2]-1]) - user_biases[row[1]-1] - movie_biases[row[2]-1] - mean_rating
-            P[row[1]-1, :] = P[row[1]-1, :] + gamma * (2 * eui * Q[:, row[2]-1] - lamda * P[row[1]-1, :])
-            Q[:, row[2]-1] = Q[:, row[2]-1] + gamma * (2 * eui * P[row[1]-1, :] - lamda * Q[:, row[2]-1])
+            # row[1] -> user index
+            # row[2] -> movie index
+            # row[3] -> rating (we exclude the 0 ratings)
+
+            # calculate error
+            eui = row[3] - np.dot(P[row[2] - 1, :], Q[:, row[1] - 1]) - user_biases[row[1] - 1] - movie_biases[
+                row[2] - 1] - mean_rating
+
+            # update p, q and biases
+            P[row[2] - 1, :] = P[row[2] - 1, :] + gamma * (2 * eui * Q[:, row[1] - 1] - lamda * P[row[2] - 1, :])
+            Q[:, row[1] - 1] = Q[:, row[1] - 1] + gamma * (2 * eui * P[row[2] - 1, :] - lamda * Q[:, row[1] - 1])
             user_biases[row[1] - 1] += gamma * (2 * eui - lamda * user_biases[row[1] - 1])
             movie_biases[row[2] - 1] += gamma * (2 * eui - lamda * movie_biases[row[2] - 1])
 
-
+    # predictions
     pred = P @ Q
 
+    # result matrix for submission
+    result = np.zeros((len(predictions_description), 2), dtype=object)
 
-    return pred
+    count = 0
 
+    # populate result matrix with rounded predictions
+    for row in predictions_description.itertuples():
+        result[count, 0] = count + 1
+        result[count, 1] = pred[row[2] - 1, row[1] - 1] + movie_biases[row[2] - 1] + user_biases[
+            row[1] - 1] + mean_rating
+        count += 1
 
-
+    return result
 
 
 def predict_randoms(movies, users, ratings, predictions):
@@ -320,45 +285,26 @@ def predict_randoms(movies, users, ratings, predictions):
     return [[idx, randint(1, 5)] for idx in range(1, number_predictions + 1)]
 
 
-##########################################
-# MAIN FUNCTION
-
-
-### TESTING
-
-
 #####
 ##
 ## SAVE RESULTS
 ##
 #####
 
+# predictions with latent factors
+# predictions = predict_latent_factors(movies_description, users_description, ratings_description, predictions_description)
 
-###################################
-## commented out for later
+# predictions with latent factors + biases
+predictions = predict_final(movies_description, users_description, ratings_description, predictions_description)
 
+# predictions with item based collaborative filtering
+# predictions = predict_collaborative_item_based(movies_description, users_description, ratings_description, predictions_description)
 
-## //!!\\ TO CHANGE by your prediction function
+# predictions with user based collaborative filtering
+# predictions = predict_collaborative_filtering(movies_description, users_description, ratings_description, predictions_description)
 
-
-# predictions_1 = predict_final(movies_description, users_description, ratings_description, predictions_description)
-predictions = predict_collaborative_item_based(movies_description, users_description, ratings_description, predictions_description)
-
-# # pred_matrix = 0.7 * predictions_2 + 0.3 * predictions_1
-#
-# # # result matrix for submission
-# result = np.zeros((len(predictions_description), 2), dtype=object)
-#
-# count = 0
-#
-# # populate result matrix with rounded predictions
-# for row in predictions_description.itertuples():
-#     result[count, 0] = count + 1
-#     result[count, 1] = pred_matrix[row[1] - 1, row[2] - 1]
-#     count += 1
-#
-# predictions = result
-
+# predictions with random ratings
+# predictions = predict_randoms(movies_description, users_description, ratings_description, predictions_description)
 
 # Save predictions, should be in the form 'list of tuples' or 'list of lists'
 with open(submission_file, 'w') as submission_writer:
