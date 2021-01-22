@@ -106,7 +106,7 @@ def predict_collaborative_item_based(movies, users, ratings, predictions):
     # add mean of item to prediction
     pred += mean_item_ratings
 
-    return get_prediction(predictions, pred)
+    return pred
 
 
 def predict_collaborative_filtering(movies, users, ratings, predictions):
@@ -144,7 +144,7 @@ def predict_collaborative_filtering(movies, users, ratings, predictions):
     # add mean of user to predictions
     pred = mean_user_ratings + pred
 
-    return get_prediction(predictions, pred)
+    return pred
 
 
 #####
@@ -191,7 +191,7 @@ def predict_latent_factors(movies, users, ratings, predictions):
     # predicted ratings
     pred = P @ Q
 
-    return get_prediction(predictions, pred)
+    return pred
 
 
 #####
@@ -201,7 +201,7 @@ def predict_latent_factors(movies, users, ratings, predictions):
 ##
 #####
 
-def predict_final(movies, users, ratings, predictions):
+def predict_latent_factor_biases(movies, users, ratings, predictions):
     # users x movies matrix
     utility_matrix = np.zeros((len(movies), len(users)))
 
@@ -233,9 +233,11 @@ def predict_final(movies, users, ratings, predictions):
 
     m, n = utility_matrix.shape
 
-    # set random P and Q with 16 factors
-    P = np.random.normal(-0.1, 0.1, (m, 7))
-    Q = np.random.normal(-0.1, 0.1, (7, n))
+    num_factors = 100
+
+    # set random P and Q with num_factors
+    P = np.random.normal(size=(m, num_factors), scale=1.0 / num_factors)
+    Q = np.random.normal(size=(n, num_factors), scale=1.0 / num_factors)
 
     # set gamma and lambda
     # lambda -> regularization factor
@@ -244,7 +246,7 @@ def predict_final(movies, users, ratings, predictions):
     gamma = 0.001
 
     # stochastic gradient descent
-    for epoch in range(100):
+    for epoch in range(60):
         print(epoch)
         for row in ratings.itertuples():
             # row[1] -> user index
@@ -252,31 +254,24 @@ def predict_final(movies, users, ratings, predictions):
             # row[3] -> rating (we exclude the 0 ratings)
 
             # calculate error
-            eui = row[3] - np.dot(P[row[2] - 1, :], Q[:, row[1] - 1]) - user_biases[row[1] - 1] - movie_biases[
+            eui = row[3] - np.dot(P[row[2] - 1, :], Q[row[1] - 1, :]) - user_biases[row[1] - 1] - movie_biases[
                 row[2] - 1] - mean_rating
 
             # update p, q and biases
-            P[row[2] - 1, :] = P[row[2] - 1, :] + gamma * (2 * eui * Q[:, row[1] - 1] - lamda * P[row[2] - 1, :])
-            Q[:, row[1] - 1] = Q[:, row[1] - 1] + gamma * (2 * eui * P[row[2] - 1, :] - lamda * Q[:, row[1] - 1])
-            user_biases[row[1] - 1] += gamma * (2 * eui - lamda * user_biases[row[1] - 1])
-            movie_biases[row[2] - 1] += gamma * (2 * eui - lamda * movie_biases[row[2] - 1])
+            P[row[2] - 1, :] = P[row[2] - 1, :] + gamma * (2*eui * Q[row[1] - 1, :] - lamda * P[row[2] - 1, :])
+            Q[row[1] - 1, :] = Q[row[1] - 1, :] + gamma * (2*eui * P[row[2] - 1, :] - lamda * Q[row[1] - 1, :])
+            user_biases[row[1] - 1] += gamma * (2*eui - lamda * user_biases[row[1] - 1])
+            movie_biases[row[2] - 1] += gamma * (2*eui - lamda * movie_biases[row[2] - 1])
 
     # predictions
-    pred = P @ Q
+    pred = P @ Q.T + movie_biases[:, np.newaxis] + user_biases[np.newaxis, :] + mean_rating
 
-    # result matrix for submission
-    result = np.zeros((len(predictions_description), 2), dtype=object)
+    return pred.T
 
-    count = 0
+# final predictor
+def predict_latent_factors_item_based(pred_latent_factors, pred_item_based):
 
-    # populate result matrix with rounded predictions
-    for row in predictions_description.itertuples():
-        result[count, 0] = count + 1
-        result[count, 1] = pred[row[2] - 1, row[1] - 1] + movie_biases[row[2] - 1] + user_biases[
-            row[1] - 1] + mean_rating
-        count += 1
-
-    return result
+    return (pred_latent_factors + pred_item_based)/2
 
 
 def predict_randoms(movies, users, ratings, predictions):
@@ -292,19 +287,41 @@ def predict_randoms(movies, users, ratings, predictions):
 #####
 
 # predictions with latent factors
-# predictions = predict_latent_factors(movies_description, users_description, ratings_description, predictions_description)
+# predictions = get_prediction(predictions_description,
+#                              predict_latent_factors(movies_description, users_description,
+#                                                     ratings_description, predictions_description))
 
 # predictions with latent factors + biases
-predictions = predict_final(movies_description, users_description, ratings_description, predictions_description)
+# predictions = get_prediction(predictions_description,
+#                              predict_latent_factor_biases(movies_description, users_description,
+#                                                           ratings_description, predictions_description))
 
 # predictions with item based collaborative filtering
-# predictions = predict_collaborative_item_based(movies_description, users_description, ratings_description, predictions_description)
+# predictions = get_prediction(predictions_description,
+#                              predict_collaborative_item_based(movies_description, users_description,
+#                                                               ratings_description, predictions_description))
 
 # predictions with user based collaborative filtering
-# predictions = predict_collaborative_filtering(movies_description, users_description, ratings_description, predictions_description)
+# predictions = get_prediction(predictions_description,
+#                             predict_collaborative_filtering(movies_description, users_description,
+#                                                             ratings_description, predictions_description))
 
 # predictions with random ratings
 # predictions = predict_randoms(movies_description, users_description, ratings_description, predictions_description)
+
+# predictions cf + lf
+# predictions = get_prediction(predictions_description,
+#                              predict_latent_factors_item_based(predict_latent_factors(movies_description, users_description,
+#                                                      ratings_description, predictions_description),
+#                             predict_collaborative_item_based(movies_description, users_description,
+#                                                                ratings_description, predictions_description)))
+
+# predictions cf + lf with biases
+predictions = get_prediction(predictions_description,
+                             predict_latent_factors_item_based(predict_latent_factor_biases(movies_description, users_description,
+                                                     ratings_description, predictions_description),
+                            predict_collaborative_item_based(movies_description, users_description,
+                                                               ratings_description, predictions_description)))
 
 # Save predictions, should be in the form 'list of tuples' or 'list of lists'
 with open(submission_file, 'w') as submission_writer:
