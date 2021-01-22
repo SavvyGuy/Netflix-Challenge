@@ -164,9 +164,9 @@ def predict_latent_factors(movies, users, ratings, predictions):
 
     m, n = utility_matrix.shape
 
-    # set random P and Q with 10 factors
-    P = np.random.rand(m, 10)
-    Q = np.random.rand(10, n)
+    # set random P and Q with 16 factors
+    P = np.random.rand(m, 16)
+    Q = np.random.rand(16, n)
 
     # set gamma and lambda
     # lambda -> regularization factor
